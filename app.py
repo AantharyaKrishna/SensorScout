@@ -2689,3 +2689,219 @@ else:
             "reported below. Real-machine performance has "
             "not been validated."
         )
+
+
+# ============================================================
+# SENSORSCOUT - FINAL BENCHMARK DASHBOARD
+# Held-out evaluation and parallel performance
+# ============================================================
+
+import json
+from pathlib import Path
+
+st.divider()
+st.header("Independent Evaluation & Performance")
+
+st.write(
+    "SensorScout evaluates sensor configurations using simulated "
+    "machine faults. We separately test generalization across "
+    "held-out simulation seeds and benchmark parallel evaluation."
+)
+
+project_dir = Path(__file__).resolve().parent
+holdout_path = project_dir / "data" / "holdout_results.json"
+parallel_path = project_dir / "data" / "parallel_benchmark.json"
+
+
+def load_benchmark_json(path):
+    """Load a saved benchmark report without crashing the app."""
+    if not path.is_file():
+        return None
+
+    try:
+        with path.open("r", encoding="utf-8") as file:
+            return json.load(file)
+    except (OSError, json.JSONDecodeError) as error:
+        st.warning(f"Could not load {path.name}: {error}")
+        return None
+
+
+holdout_data = load_benchmark_json(holdout_path)
+parallel_data = load_benchmark_json(parallel_path)
+
+
+# ------------------------------------------------------------
+# HELD-OUT EVALUATION
+# ------------------------------------------------------------
+
+st.subheader("Held-Out Evaluation")
+
+st.write(
+    "The baseline and optimized configurations were tested "
+    "on 10 additional simulation seeds. This evaluates "
+    "performance under different simulated noise conditions."
+)
+
+heldout_rows = [
+    {
+        "Metric": "Average score",
+        "Baseline": "88.9142",
+        "Optimized": "88.9379",
+    },
+    {
+        "Metric": "Fault recall",
+        "Baseline": "100%",
+        "Optimized": "100%",
+    },
+    {
+        "Metric": "Precision",
+        "Baseline": "100%",
+        "Optimized": "100%",
+    },
+    {
+        "Metric": "Sensor cost (units)",
+        "Baseline": "370",
+        "Optimized": "360",
+    },
+    {
+        "Metric": "Mean detection delay (s)",
+        "Baseline": "31.1290",
+        "Optimized": "31.3913",
+    },
+]
+
+st.dataframe(
+    pd.DataFrame(heldout_rows),
+    hide_index=True,
+    width="stretch",
+)
+
+col1, col2, col3 = st.columns(3)
+
+with col1:
+    st.metric(
+        "Held-Out Score",
+        "88.9379",
+        delta="+0.0237",
+    )
+
+with col2:
+    st.metric(
+        "Sensor Cost",
+        "360 units",
+        delta="-10 units",
+        delta_color="inverse",
+    )
+
+with col3:
+    st.metric(
+        "Detection Delay",
+        "31.39 s",
+        delta="+0.26 s",
+        delta_color="inverse",
+    )
+
+st.info(
+    "The optimized configuration achieved a small improvement "
+    "in overall score and reduced sensor cost. However, average "
+    "detection delay was slightly slower. This demonstrates "
+    "a measurable cost-versus-delay trade-off."
+)
+
+if holdout_data is not None:
+    with st.expander("View Saved Held-Out Benchmark Report"):
+        st.json(holdout_data)
+else:
+    st.warning(
+        "The saved held-out report was not found. "
+        "The summary above uses the previously reported "
+        "benchmark results."
+    )
+
+
+# ------------------------------------------------------------
+# PARALLEL EVALUATION
+# ------------------------------------------------------------
+
+st.divider()
+st.subheader("Parallel Evaluation Benchmark")
+
+st.write(
+    "SensorScout can evaluate independent sensor configurations "
+    "using parallel worker processes. We compare this with "
+    "sequential execution and check that the results match."
+)
+
+col1, col2, col3 = st.columns(3)
+
+with col1:
+    st.metric(
+        "Sequential Runtime",
+        "1.574 s",
+    )
+
+with col2:
+    st.metric(
+        "Parallel Runtime",
+        "1.540 s",
+    )
+
+with col3:
+    st.metric(
+        "Measured Speedup",
+        "1.02x",
+    )
+
+st.caption(
+    "The reported 1.02x speedup comes from one benchmark run. "
+    "Performance may vary with machine hardware, workload, "
+    "and worker configuration."
+)
+
+st.success(
+    "Sequential and parallel evaluation produced matching "
+    "summary results in the reported benchmark."
+)
+
+if parallel_data is not None:
+    with st.expander("View Saved Parallel Benchmark Report"):
+        st.json(parallel_data)
+else:
+    st.warning(
+        "The saved parallel benchmark report was not found. "
+        "The summary above uses the previously reported "
+        "benchmark results."
+    )
+
+
+# ------------------------------------------------------------
+# FINAL PROJECT SUMMARY
+# ------------------------------------------------------------
+
+st.divider()
+st.subheader("What Makes SensorScout Different?")
+
+st.markdown(
+    """
+    - **Blind Spot Hunter:** Identifies machine locations
+      with slower fault detection.
+    - **Four agent roles:** Challenger, Diagnosis, Designer,
+      and Strategist coordinate optimization decisions.
+    - **Feedback-driven search:** Rejection reasons influence
+      later search strategies.
+    - **Experiment memory:** Previously evaluated configurations
+      are not evaluated repeatedly.
+    - **Held-out evaluation:** Tests configurations across
+      additional simulated noise seeds.
+    - **Parallel benchmarking:** Compares independent evaluations
+      running sequentially and in parallel.
+    """
+)
+
+st.caption(
+    "SensorScout is a simulation-based prototype. "
+    "The adaptive search uses rule-based feedback rather "
+    "than model retraining. Results have not been "
+    "validated on physical industrial machines."
+)
+
