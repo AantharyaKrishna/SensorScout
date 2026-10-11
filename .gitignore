@@ -218,3 +218,9 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+# macOS files
+.DS_Store
+
+# Local experiment history
+data/experiments.json
+.venv-1/
