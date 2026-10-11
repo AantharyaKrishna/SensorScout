@@ -289,6 +289,112 @@ if evaluation is not None:
         )
 
 
+# -------------------------------------------------
+# ATTACK MY DESIGN
+# -------------------------------------------------
+
+st.divider()
+st.subheader("Attack My Design")
+
+st.write(
+    "Challenge your current sensor layout by searching "
+    "for faults it misses or detects slowly."
+)
+
+st.caption(
+    "This search tests the selected sensor layout against "
+    "simulated validation scenarios."
+)
+
+if st.button("Find blind spots", key="attack_design_button"):
+    with st.spinner("Searching for monitoring weaknesses..."):
+        attack_result = evaluate_configuration(
+            config,
+            scenario_set="validation",
+            seed=int(seed),
+        )
+
+    st.session_state["attack_result"] = attack_result
+
+attack_result = st.session_state.get("attack_result")
+
+if attack_result is not None:
+    st.write(
+        "Tested configuration:",
+        attack_result["config"],
+    )
+
+    scenarios = [
+        scenario
+        for scenario in attack_result["scenario_results"]
+        if scenario.get("fault_type") != "healthy"
+    ]
+
+    missed_faults = [
+        scenario
+        for scenario in scenarios
+        if not scenario.get("detected", False)
+    ]
+
+    if missed_faults:
+        st.error(
+            f"Found {len(missed_faults)} missed fault scenarios."
+        )
+
+        st.dataframe(
+            pd.DataFrame(missed_faults)[
+                ["fault_type", "fault_position"]
+            ],
+            hide_index=True,
+            use_container_width=True,
+        )
+    else:
+        st.success(
+            "No missed faults in the tested validation scenarios."
+        )
+
+    detected = [
+        scenario
+        for scenario in scenarios
+        if scenario.get("detected", False)
+        and scenario.get("detection_delay_s") is not None
+    ]
+
+    if detected:
+        slowest = sorted(
+            detected,
+            key=lambda item: item["detection_delay_s"],
+            reverse=True,
+        )[:5]
+
+        st.subheader("Slowest Detected Faults")
+
+        st.dataframe(
+            pd.DataFrame(slowest)[
+                [
+                    "fault_type",
+                    "fault_position",
+                    "detection_delay_s",
+                ]
+            ],
+            hide_index=True,
+            use_container_width=True,
+        )
+
+        worst = slowest[0]
+
+        st.warning(
+            f"Slowest scenario: {worst['fault_type']} "
+            f"at position {worst['fault_position']}, "
+            f"detected after "
+            f"{worst['detection_delay_s']:.2f} seconds."
+        )
+
+    st.caption(
+        "Results are based on simulated scenarios, "
+        "not real factory equipment."
+    )
+
 
 # -------------------------------------------------
 # AI OPTIMIZATION DASHBOARD
