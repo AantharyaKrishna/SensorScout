@@ -1,10 +1,9 @@
-
 import argparse
 import json
 import sys
 from pathlib import Path
+from statistics import mean, stdev
 
-# Find the SensorScout project root and make src importable.
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
@@ -13,7 +12,6 @@ from src.optimizer import BASELINE
 
 
 def load_optimization_run(run_path):
-    """Load a previously saved optimization result."""
     if not run_path.exists():
         raise FileNotFoundError(
             f"Optimization result not found: {run_path}\n"
@@ -24,15 +22,12 @@ def load_optimization_run(run_path):
         result = json.load(file)
 
     if "best_config" not in result:
-        raise ValueError(
-            "The optimization result does not contain 'best_config'."
-        )
+        raise ValueError("Saved run is missing 'best_config'.")
 
     return result
 
 
 def summarize_metrics(metrics):
-    """Keep summary metrics while excluding per-scenario details."""
     return {
         key: value
         for key, value in metrics.items()
@@ -40,131 +35,173 @@ def summarize_metrics(metrics):
     }
 
 
+def optional_mean(values):
+    available = [value for value in values if value is not None]
+    return mean(available) if available else None
+
+
 def main():
     parser = argparse.ArgumentParser(
-        description=(
-            "Compare baseline and optimized SensorScout configurations "
-            "on held-out test scenarios."
-        )
+        description="Compare fixed layouts across held-out test seeds."
     )
-
-    parser.add_argument(
-        "--run",
-        default="data/mock_run.json",
-        help="Saved optimization JSON path, relative to project root.",
-    )
-
-    parser.add_argument(
-        "--seed",
-        type=int,
-        default=98765,
-        help="Seed for the held-out test scenarios.",
-    )
-
+    parser.add_argument("--run", default="data/mock_run.json")
+    parser.add_argument("--seed", type=int, default=98765)
+    parser.add_argument("--count", type=int, default=10)
     parser.add_argument(
         "--output",
         default="data/holdout_results.json",
-        help="Output JSON path, relative to project root.",
     )
-
     args = parser.parse_args()
 
     if args.seed < 0:
-        parser.error("--seed must be a non-negative integer.")
+        parser.error("--seed must be non-negative.")
+    if args.count < 1:
+        parser.error("--count must be at least 1.")
 
-    run_path = ROOT / args.run
-    optimization_result = load_optimization_run(run_path)
+    saved_run = load_optimization_run(ROOT / args.run)
 
-    # Use the exact configurations from the saved optimization run.
-    baseline_config = optimization_result.get("baseline", BASELINE)
-    optimized_config = optimization_result["best_config"]
-
+    # Freeze layouts before evaluating any test scenarios.
     configurations = {
-        "baseline": baseline_config,
-        "optimized": optimized_config,
+        "baseline": saved_run.get("baseline", BASELINE),
+        "optimized": saved_run["best_config"],
     }
 
-    results = {}
+    # Each evaluation uses 32 consecutive scenario seeds.
+    # A spacing of 1,000 prevents overlap between these runs.
+    seeds = [args.seed + 1000 * index for index in range(args.count)]
+    comparisons = []
 
     print("\n=== SensorScout Held-Out Evaluation ===")
-    print(f"Scenario set: test")
-    print(f"Test seed: {args.seed}")
-    print(f"Optimization run: {args.run}")
+    print("Scenario set: test")
+    print(f"Test seeds: {seeds}")
+    print(f"Baseline: {configurations['baseline']}")
+    print(f"Optimized: {configurations['optimized']}")
 
-    for name, config in configurations.items():
-        print(f"\nEvaluating {name} configuration...")
+    for seed in seeds:
+        results = {}
 
-        metrics = evaluate_configuration(
-            config=config,
-            scenario_set="test",
-            seed=args.seed,
+        for name, config in configurations.items():
+            metrics = evaluate_configuration(
+                config=config,
+                scenario_set="test",
+                seed=seed,
+            )
+            results[name] = summarize_metrics(metrics)
+
+        baseline = results["baseline"]
+        optimized = results["optimized"]
+
+        if baseline["score_version"] != optimized["score_version"]:
+            raise ValueError("Scoring versions do not match.")
+
+        score_difference = optimized["score"] - baseline["score"]
+
+        baseline_delay = baseline["mean_detection_delay_s"]
+        optimized_delay = optimized["mean_detection_delay_s"]
+        delay_difference = (
+            optimized_delay - baseline_delay
+            if baseline_delay is not None and optimized_delay is not None
+            else None
         )
 
-        results[name] = {
-            "config": config,
-            "metrics": summarize_metrics(metrics),
+        comparisons.append({
+            "seed": seed,
+            "score_difference": score_difference,
+            "detection_delay_difference_s": delay_difference,
+            "results": results,
+        })
+
+        print(
+            f"Seed {seed}: "
+            f"baseline={baseline['score']:.4f}, "
+            f"optimized={optimized['score']:.4f}, "
+            f"difference={score_difference:+.4f}"
+        )
+
+    metric_names = (
+        "score",
+        "fault_recall",
+        "precision",
+        "false_alarm_rate",
+        "mean_detection_delay_s",
+        "sensor_cost_units",
+    )
+
+    averages = {
+        name: {
+            metric: optional_mean([
+                comparison["results"][name][metric]
+                for comparison in comparisons
+            ])
+            for metric in metric_names
         }
+        for name in configurations
+    }
 
-        print(f"Configuration: {config}")
-        print(f"Score: {metrics['score']:.4f}")
-        print(f"Fault recall: {metrics['fault_recall']:.4f}")
-        print(f"Precision: {metrics['precision']:.4f}")
-        print(
-            "False alarm rate: "
-            f"{metrics['false_alarm_rate']:.4f}"
-        )
-        print(
-            "Mean detection delay: "
-            f"{metrics['mean_detection_delay_s']}"
-        )
-        print(f"Sensor cost: {metrics['sensor_cost_units']}")
+    differences = [item["score_difference"] for item in comparisons]
+    tolerance = 1e-9
 
-    baseline_metrics = results["baseline"]["metrics"]
-    optimized_metrics = results["optimized"]["metrics"]
-
-    score_difference = (
-        optimized_metrics["score"] - baseline_metrics["score"]
-    )
-
-    delay_difference = (
-        optimized_metrics["mean_detection_delay_s"]
-        - baseline_metrics["mean_detection_delay_s"]
-    )
+    summary = {
+        "mean_metrics": averages,
+        "mean_score_difference": mean(differences),
+        "score_difference_standard_deviation": (
+            stdev(differences) if len(differences) > 1 else None
+        ),
+        "minimum_score_difference": min(differences),
+        "maximum_score_difference": max(differences),
+        "optimized_wins": sum(value > tolerance for value in differences),
+        "baseline_wins": sum(value < -tolerance for value in differences),
+        "ties": sum(abs(value) <= tolerance for value in differences),
+        "mean_paired_detection_delay_difference_s": optional_mean([
+            item["detection_delay_difference_s"]
+            for item in comparisons
+        ]),
+    }
 
     output = {
         "scenario_set": "test",
-        "seed": args.seed,
+        "seeds": seeds,
         "source_run": args.run,
-        "score_difference_optimized_minus_baseline": score_difference,
-        "detection_delay_difference_s_optimized_minus_baseline": (
-            delay_difference
-        ),
-        "results": results,
+        "configurations": configurations,
+        "score_version": comparisons[0]["results"]["baseline"]["score_version"],
+        "summary": summary,
+        "comparisons": comparisons,
     }
 
     output_path = ROOT / args.output
     output_path.parent.mkdir(parents=True, exist_ok=True)
-
-    with output_path.open("w", encoding="utf-8") as file:
-        json.dump(output, file, indent=2)
-
-    print("\n=== Held-Out Comparison ===")
-    print(f"Baseline score: {baseline_metrics['score']:.4f}")
-    print(f"Optimized score: {optimized_metrics['score']:.4f}")
-    print(f"Score difference: {score_difference:+.4f}")
-    print(
-        "Detection delay difference: "
-        f"{delay_difference:+.4f} seconds"
+    output_path.write_text(
+        json.dumps(output, indent=2, allow_nan=False),
+        encoding="utf-8",
     )
 
-    if score_difference > 0:
-        print("Result: Optimized configuration scored higher.")
-    elif score_difference < 0:
-        print("Result: Baseline configuration scored higher.")
-    else:
-        print("Result: Both configurations have the same score.")
+    print("\n=== Summary Across Test Seeds ===")
+    for name, metrics in averages.items():
+        print(f"\n{name.capitalize()}:")
+        for metric, value in metrics.items():
+            formatted = f"{value:.4f}" if value is not None else "N/A"
+            print(f"  {metric}: {formatted}")
 
-    print(f"\nResults saved to: {output_path}")
+    print(
+        "\nMean score difference: "
+        f"{summary['mean_score_difference']:+.4f}"
+    )
+    print(
+        f"Optimized wins: {summary['optimized_wins']}/{len(seeds)}"
+    )
+    print(f"Baseline wins: {summary['baseline_wins']}/{len(seeds)}")
+    print(f"Ties: {summary['ties']}")
+
+    delay = summary["mean_paired_detection_delay_difference_s"]
+    if delay is not None:
+        print(f"Mean delay difference: {delay:+.4f} seconds")
+        print("Negative delay difference means faster detection.")
+
+    print(
+        "\nThese tests vary simulator noise; they do not establish "
+        "performance on real machines or new fault types."
+    )
+    print(f"\nSaved results to: {output_path}")
 
 
 if __name__ == "__main__":
