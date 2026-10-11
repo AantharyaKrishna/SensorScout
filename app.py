@@ -2678,30 +2678,14 @@ else:
 
             )
 
-
-
         else:
-
             st.info(
-
-                "No individual experiment history "
-
-                "is available."
-
+                "No individual experiment history is available."
             )
 
-
-
-            st.caption(
-
-            "Optimization experiments use simulated validation scenarios. "
-
-            "Independent test-seed comparisons are shown in the "
-
-            "held-out validation section below. "
-
-            "Real-machine performance has not been validated."
-
+        st.caption(
+            "Optimization uses simulated validation scenarios. "
+            "Independent held-out test-seed comparisons are "
+            "reported below. Real-machine performance has "
+            "not been validated."
         )
-
-
