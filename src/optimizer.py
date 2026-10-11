@@ -1,4 +1,4 @@
-
+from src.agents import ai_designer_proposal
 import random
 
 from src.agents import (
@@ -15,18 +15,37 @@ BASELINE = {
 }
 
 
+
 def mock_evaluator(config, scenario_set="validation", seed=42):
     """Synthetic evaluator for testing the agent workflow only."""
     validate_proposal(config)
 
     rng = random.Random(seed)
-    target = {0, 1, 6}
-    overlap = len(target.intersection(config["sensor_positions"]))
+
+    # Artificial importance of each sensor location
+    position_weights = {
+        0: 0.12,
+        1: 0.22,
+        2: 0.07,
+        3: 0.04,
+        4: 0.09,
+        5: 0.06,
+        6: 0.18,
+        7: 0.03,
+    }
+
+    position_score = sum(
+        position_weights[pos]
+        for pos in config["sensor_positions"]
+    )
+
     rate_bonus = sum(config["sampling_rates_hz"]) / 60
 
     score = min(
         1.0,
-        0.2 + 0.17 * overlap + 0.1 * rate_bonus
+        0.25
+        + position_score
+        + 0.10 * rate_bonus
         + rng.uniform(0, 0.01),
     )
 
@@ -39,6 +58,7 @@ def mock_evaluator(config, scenario_set="validation", seed=42):
         "score": score,
         "n_scenarios": 20,
     }
+
 
 
 def run_optimization(rounds=5, evaluator=None, seed=42):
@@ -71,7 +91,7 @@ def run_optimization(rounds=5, evaluator=None, seed=42):
     for round_number in range(1, rounds + 1):
         challenge = challenger.challenge(best_config, rng)
         diagnosis = diagnosis_agent.diagnose(best_config, challenge)
-        proposal = designer.propose(best_config, diagnosis, rng)
+        proposal = ai_designer_proposal(best_config, diagnosis)
 
         candidate_metrics = evaluator(
             proposal, scenario_set="validation", seed=seed

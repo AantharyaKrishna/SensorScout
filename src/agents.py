@@ -98,3 +98,53 @@ class StrategistAgent:
                 if accepted else "Keep existing configuration"
             ),
         }
+
+
+import json
+import re
+
+from src.contracts import validate_configuration
+from src.llm_client import call_model
+
+
+def ai_designer_proposal(config, diagnosis):
+    """Ask DeepSeek to propose an improved sensor configuration."""
+
+    system_prompt = """
+You are SensorScout's Designer Agent.
+
+Your job is to suggest sensor placements that may improve
+industrial fault detection.
+
+Rules:
+- There are 8 possible sensor positions: 0 through 7.
+- Select exactly 3 unique positions.
+- Choose exactly 3 sampling rates.
+- Allowed rates are 5, 10, or 20 Hz.
+- Return ONLY a JSON object with:
+  sensor_positions
+  sampling_rates_hz
+
+Do not include markdown or explanations.
+"""
+
+    user_prompt = (
+        f"Current configuration: {json.dumps(config)}\n"
+        f"Diagnosis: {json.dumps(diagnosis)}\n"
+        "Propose a better configuration."
+    )
+
+    response = call_model(system_prompt, user_prompt)
+
+    try:
+        cleaned = response.strip()
+        cleaned = re.sub(r"^```(?:json)?\s*", "", cleaned)
+        cleaned = re.sub(r"\s*```$", "", cleaned)
+
+        proposal = json.loads(cleaned)
+        validate_configuration(proposal)
+        return proposal
+
+    except (ValueError, TypeError, AttributeError):
+        return config.copy()
+
