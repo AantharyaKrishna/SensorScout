@@ -3,3 +3,5 @@
 __pycache__/
 *.pyc
 .DS_Store
+src/agents_backup.py
+data/mock_run.json
