@@ -279,7 +279,7 @@ if evaluation is not None:
     st.caption(
         "Detection delay includes detected faults only. "
         "The current score balances recall, false alarms, and cost; "
-        "it does not include detection delay."
+        "it also includes detection delay."
     )
 
     with st.expander("View individual scenario results"):
@@ -760,15 +760,26 @@ if optimization_result is not None:
                     "the local rule-based Designer."
                 )
 
-            st.write(
-                "Sensor positions:",
-                step["config"]["sensor_positions"],
+            
+            sensor_positions = step["config"]["sensor_positions"]
+            sampling_rates = step["config"]["sampling_rates_hz"]
+
+            sensor_table = pd.DataFrame({
+                "Sensor": [
+                    f"Sensor {i + 1}"
+                    for i in range(len(sensor_positions))
+                ],
+                "Position": sensor_positions,
+                "Sampling Rate (Hz)": sampling_rates,
+            })
+
+            st.markdown("**Proposed Sensor Configuration**")
+            st.dataframe(
+                sensor_table,
+                hide_index=True,
+                use_container_width=True,
             )
 
-            st.write(
-                "Sampling rates (Hz):",
-                step["config"]["sampling_rates_hz"],
-            )
 
             st.markdown("#### 4. Strategist Agent")
 

@@ -88,7 +88,7 @@ class ChallengerAgent:
                     f"Position {worst['position']} has "
                     f"{worst['missed_faults']} missed faults "
                     f"and an average detection delay of "
-                    f"{worst['average_delay_s']} seconds."
+                    f"{worst['average_delay_s']:.2f} seconds."
                 ),
             }
 
