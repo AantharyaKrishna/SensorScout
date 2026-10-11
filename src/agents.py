@@ -29,22 +29,87 @@ def validate_proposal(config):
     return config
 
 
+
 class ChallengerAgent:
-    def challenge(self, config, rng=None):
+    def challenge(self, config, rng=None, metrics=None):
         rng = rng or random.Random()
-        positions = config["sensor_positions"]
-        unmonitored = [p for p in POSITIONS if p not in positions]
+
+        if metrics and metrics.get("scenario_results"):
+            location_stats = []
+
+            for position in POSITIONS:
+                scenarios = [
+                    item
+                    for item in metrics["scenario_results"]
+                    if item["fault_position"] == position
+                    and item["fault_type"] != "healthy"
+                ]
+
+                if not scenarios:
+                    continue
+
+                missed = sum(
+                    not item["detected"] for item in scenarios
+                )
+
+                delays = [
+                    item["detection_delay_s"]
+                    for item in scenarios
+                    if item["detection_delay_s"] is not None
+                ]
+
+                avg_delay = (
+                    sum(delays) / len(delays)
+                    if delays else None
+                )
+
+                location_stats.append({
+                    "position": position,
+                    "missed_faults": missed,
+                    "average_delay_s": avg_delay,
+                })
+
+            # Prioritize missed faults, then slow detection
+            worst = max(
+                location_stats,
+                key=lambda item: (
+                    item["missed_faults"],
+                    item["average_delay_s"]
+                    if item["average_delay_s"] is not None
+                    else float("inf"),
+                ),
+            )
+
+            return {
+                "target_position": worst["position"],
+                "missed_faults": worst["missed_faults"],
+                "average_delay_s": worst["average_delay_s"],
+                "reason": (
+                    f"Position {worst['position']} has "
+                    f"{worst['missed_faults']} missed faults "
+                    f"and an average detection delay of "
+                    f"{worst['average_delay_s']} seconds."
+                ),
+            }
+
+        # Fallback if no evaluation data is available
+        unmonitored = [
+            p for p in POSITIONS
+            if p not in config["sensor_positions"]
+        ]
+
         target = rng.choice(unmonitored)
 
         return {
             "target_position": target,
-            "reason": f"Test a potential blind spot at position {target}",
+            "reason": f"Explore position {target}",
         }
 
 
 class DiagnosisAgent:
     def diagnose(self, config, challenge):
         target = challenge["target_position"]
+
         nearest = min(
             config["sensor_positions"],
             key=lambda p: abs(p - target)
@@ -54,26 +119,49 @@ class DiagnosisAgent:
             "weak_position": target,
             "nearest_sensor": nearest,
             "distance": abs(target - nearest),
-            "recommendation": "Test sensor relocation",
+            "missed_faults": challenge.get("missed_faults"),
+            "average_delay_s": challenge.get("average_delay_s"),
+            "recommendation": (
+                f"Investigate relocating a sensor closer to "
+                f"position {target}, while preserving coverage "
+                "at other locations."
+            ),
         }
+
 
 
 class DesignerAgent:
     def propose(self, config, diagnosis, rng=None):
-        rng = rng or random.Random()
+        """Propose a targeted sampling-rate adjustment."""
 
         positions = config["sensor_positions"].copy()
         rates = config["sampling_rates_hz"].copy()
+
         target = diagnosis["weak_position"]
 
-        if target not in positions:
-            candidates = [p for p in positions if p != target]
-            replacement = rng.choice(candidates)
-            index = positions.index(replacement)
-            positions[index] = target
+        # Find the sensor nearest to the weak location
+        nearest_index = min(
+            range(len(positions)),
+            key=lambda i: abs(positions[i] - target),
+        )
 
-        index = rng.randrange(3)
-        rates[index] = rng.choice(RATES)
+        # Try increasing sampling at the nearest sensor
+        current_rate = rates[nearest_index]
+
+        if current_rate == 5:
+            rates[nearest_index] = 10
+        elif current_rate == 10:
+            rates[nearest_index] = 20
+        else:
+            # Already at maximum; try reducing a different sensor
+            other_indices = [
+                i for i in range(len(rates))
+                if i != nearest_index and rates[i] > 5
+            ]
+
+            if other_indices:
+                i = max(other_indices, key=lambda j: rates[j])
+                rates[i] = 10 if rates[i] == 20 else 5
 
         return validate_proposal({
             "sensor_positions": positions,
@@ -81,23 +169,65 @@ class DesignerAgent:
         })
 
 
+
+
 class StrategistAgent:
     def decide(self, current_metrics, candidate_metrics):
+        """Compare fault coverage, detection speed, and cost."""
+
         old_score = current_metrics["score"]
         new_score = candidate_metrics["score"]
 
-        accepted = new_score > old_score
+        old_recall = current_metrics["fault_recall"]
+        new_recall = candidate_metrics["fault_recall"]
+
+        old_delay = current_metrics.get("mean_detection_delay_s")
+        new_delay = candidate_metrics.get("mean_detection_delay_s")
+
+        old_cost = current_metrics["sensor_cost_units"]
+        new_cost = candidate_metrics["sensor_cost_units"]
+
+        # Never sacrifice fault recall
+        recall_ok = new_recall >= old_recall
+
+        # Prefer configurations that improve the existing score
+        score_improved = new_score > old_score + 1e-6
+
+        # Track whether detection became faster
+        delay_improved = (
+            old_delay is not None
+            and new_delay is not None
+            and new_delay < old_delay
+        )
+
+        # Accept a better score only if recall is preserved.
+        # A faster configuration can also be accepted if
+        # its cost does not increase and recall is preserved.
+        accepted = recall_ok and (
+            score_improved
+            or (
+                delay_improved
+                and new_cost <= old_cost
+                and new_score >= old_score - 0.5
+            )
+        )
 
         return {
             "accepted": accepted,
             "old_score": old_score,
             "new_score": new_score,
             "improvement": new_score - old_score,
+            "old_delay_s": old_delay,
+            "new_delay_s": new_delay,
+            "old_cost": old_cost,
+            "new_cost": new_cost,
             "reason": (
-                "Candidate improves the score"
-                if accepted else "Keep existing configuration"
+                "Candidate improves the monitoring trade-off"
+                if accepted
+                else "Candidate does not meet acceptance criteria"
             ),
         }
+
 
 
 import json
@@ -107,8 +237,10 @@ from src.contracts import validate_configuration
 from src.llm_client import call_model
 
 
+
+    
 def ai_designer_proposal(config, diagnosis):
-    """Ask DeepSeek to propose an improved sensor configuration."""
+    """Generate a proposal using DeepSeek or a rule-based fallback."""
 
     system_prompt = """
 You are SensorScout's Designer Agent.
@@ -131,10 +263,27 @@ Do not include markdown or explanations.
     user_prompt = (
         f"Current configuration: {json.dumps(config)}\n"
         f"Diagnosis: {json.dumps(diagnosis)}\n"
-        "Propose a better configuration."
+        "Propose a configuration specifically targeting the diagnosed "
+        "weak position. Consider moving a sensor closer to that location "
+        "or changing its sampling rate. Preserve detection performance "
+        "at other locations and minimize sensor cost. "
+        "Return only the required JSON."
     )
 
-    response = call_model(system_prompt, user_prompt)
+    try:
+        response = call_model(system_prompt, user_prompt)
+
+    except Exception as error:
+        print(f"DeepSeek unavailable: {error}")
+        print("Using rule-based Designer Agent instead.")
+
+        fallback = DesignerAgent().propose(
+            config,
+            diagnosis,
+            random.Random(42),
+        )
+
+        return fallback, "rule_based_fallback"
 
     try:
         cleaned = response.strip()
@@ -143,8 +292,17 @@ Do not include markdown or explanations.
 
         proposal = json.loads(cleaned)
         validate_configuration(proposal)
-        return proposal
 
-    except (ValueError, TypeError, AttributeError):
-        return config.copy()
+        return proposal, "deepseek"
 
+    except (ValueError, TypeError, AttributeError) as error:
+        print(f"Invalid DeepSeek response: {error}")
+        print("Using rule-based Designer Agent instead.")
+
+        fallback = DesignerAgent().propose(
+            config,
+            diagnosis,
+            random.Random(42),
+        )
+
+        return fallback, "invalid_response_fallback"

@@ -287,3 +287,324 @@ if evaluation is not None:
             pd.DataFrame(evaluation["scenario_results"]),
             width="stretch",
         )
+
+
+# -------------------------------------------------
+# AI OPTIMIZATION DASHBOARD
+# -------------------------------------------------
+
+st.divider()
+st.header("AI Sensor Optimization")
+st.write(
+    "SensorScout uses AI-guided experiments to discover "
+    "better sensor layouts and evaluate them against "
+    "simulated machine faults."
+)
+
+from src.optimizer import run_optimization, BASELINE
+
+rounds = st.slider(
+    "Number of optimization rounds",
+    min_value=1,
+    max_value=15,
+    value=5,
+    key="optimization_rounds",
+)
+
+import json
+from pathlib import Path
+
+if st.button("Load Previous Optimization"):
+    results_path = Path("data/mock_run.json")
+
+    if results_path.exists():
+        with results_path.open() as f:
+            st.session_state["optimization_result"] = json.load(f)
+        st.success("Previous optimization results loaded!")
+    else:
+        st.warning("No saved optimization results found.")
+
+if st.button("Run AI Optimization", type="primary"):
+    with st.spinner(
+        "DeepSeek is proposing sensor configurations "
+        "and the simulator is testing them..."
+    ):
+        try:
+            optimization_result = run_optimization(
+                rounds=rounds,
+                seed=int(seed),
+            )
+            st.session_state["optimization_result"] = (
+                optimization_result
+            )
+        except Exception as error:
+            st.error(f"Optimization failed: {error}")
+
+optimization_result = st.session_state.get(
+    "optimization_result"
+)
+
+if optimization_result is not None:
+
+    history = optimization_result["history"]
+    baseline_metrics = history[0]["metrics"]
+    best_metrics = optimization_result["best_metrics"]
+
+    baseline_score = baseline_metrics["score"]
+    best_score = best_metrics["score"]
+
+    improvement = best_score - baseline_score
+
+    st.subheader("Optimization Results")
+
+    col1, col2, col3, col4 = st.columns(4)
+
+    col1.metric(
+        "Baseline Score",
+        f"{baseline_score:.2f}",
+    )
+
+    col2.metric(
+        "Best Score",
+        f"{best_score:.2f}",
+        delta=f"{improvement:+.2f}",
+    )
+
+    col3.metric(
+        "Fault Recall",
+        f"{best_metrics['fault_recall']:.1%}",
+    )
+
+    col4.metric(
+        "Sensor Cost",
+        f"{best_metrics['sensor_cost_units']:.0f}",
+        delta=(
+            f"{best_metrics['sensor_cost_units'] - baseline_metrics['sensor_cost_units']:+.0f}"
+        ),
+        delta_color="inverse",
+    )
+
+    left, right = st.columns(2)
+
+    with left:
+        st.subheader("Original Configuration")
+        st.write(BASELINE)
+
+    with right:
+        st.subheader("Best Configuration")
+        st.write(optimization_result["best_config"])
+
+    st.subheader("Optimization Progress")
+
+    progress_data = pd.DataFrame([
+        {
+            "Round": item["round"],
+            "Candidate Score": item["metrics"]["score"],
+            "Best Score": item["best_score"],
+        }
+        for item in history
+    ])
+
+    st.line_chart(
+        progress_data.set_index("Round")[
+            ["Candidate Score", "Best Score"]
+        ]
+    )
+
+    st.subheader("Agent Experiment History")
+
+    experiment_rows = []
+
+    for item in history:
+        experiment_rows.append({
+            "Round": item["round"],
+            "Sensor Positions": str(
+                item["config"]["sensor_positions"]
+            ),
+            "Sampling Rates": str(
+                item["config"]["sampling_rates_hz"]
+            ),
+            "Proposal Source": item.get(
+                "proposal_source", "unknown"
+            ),
+            "Score": round(
+                item["metrics"]["score"], 2
+            ),
+            "Accepted": item["accepted"],
+        })
+
+    st.dataframe(
+        pd.DataFrame(experiment_rows),
+        width="stretch",
+        hide_index=True,
+    )
+
+    st.subheader("Best Configuration Performance")
+
+    metric1, metric2, metric3 = st.columns(3)
+
+    metric1.metric(
+        "Precision",
+        f"{best_metrics['precision']:.1%}"
+        if best_metrics["precision"] is not None
+        else "N/A",
+    )
+
+    metric2.metric(
+        "False Alarm Rate",
+        f"{best_metrics['false_alarm_rate']:.1%}",
+    )
+
+    delay = best_metrics["mean_detection_delay_s"]
+
+    metric3.metric(
+        "Mean Detection Delay",
+        f"{delay:.2f} seconds"
+        if delay is not None
+        else "N/A",
+    )
+
+    st.caption(
+        "Results are based on a simplified industrial "
+        "fault simulator, not real factory measurements. "
+        "DeepSeek generates candidate proposals; repeated "
+        "proposals may be replaced by random exploration."
+    )
+
+    st.download_button(
+        "Download Optimization History",
+        data=pd.DataFrame(
+            experiment_rows
+        ).to_csv(index=False),
+        file_name="sensorscout_optimization.csv",
+        mime="text/csv",
+    )
+
+
+# -------------------------------------------------
+# BLIND SPOT HUNTER
+# -------------------------------------------------
+
+st.divider()
+st.header("Blind Spot Hunter")
+
+st.write(
+    "Discover which machine locations are hardest to monitor "
+    "using the current sensor configuration."
+)
+
+if st.button("Analyze Blind Spots", type="primary"):
+
+    with st.spinner("Analyzing simulated fault locations..."):
+
+        if "optimization_result" in st.session_state:
+            active_config = st.session_state[
+                "optimization_result"
+            ]["best_config"]
+        else:
+            active_config = BASELINE
+
+        analysis = evaluate_configuration(
+            active_config,
+            scenario_set="validation",
+            seed=int(seed),
+        )
+
+        st.session_state["blind_spot_analysis"] = analysis
+        st.session_state["blind_spot_config"] = active_config
+
+if "blind_spot_analysis" in st.session_state:
+
+    analysis = st.session_state["blind_spot_analysis"]
+    active_config = st.session_state["blind_spot_config"]
+
+    rows = []
+
+    for position in range(8):
+
+        scenarios = [
+            item
+            for item in analysis["scenario_results"]
+            if item["fault_position"] == position
+            and item["fault_type"] != "healthy"
+        ]
+
+        detected = sum(
+            1 for item in scenarios if item["detected"]
+        )
+
+        delays = [
+            item["detection_delay_s"]
+            for item in scenarios
+            if item["detection_delay_s"] is not None
+        ]
+
+        avg_delay = (
+            sum(delays) / len(delays)
+            if delays else None
+        )
+
+        recall = (
+            detected / len(scenarios)
+            if scenarios else 0
+        )
+
+        rows.append({
+            "Position": position,
+            "Sensor Installed": (
+                position in active_config["sensor_positions"]
+            ),
+            "Fault Recall": recall,
+            "Average Detection Delay (s)": avg_delay,
+        })
+
+    blind_df = pd.DataFrame(rows)
+
+    st.subheader("Machine Monitoring Map")
+
+    st.write(
+        "Each bar represents a possible sensor location. "
+        "Longer detection delays indicate weaker monitoring."
+    )
+
+    chart = px.bar(
+        blind_df,
+        x="Position",
+        y="Average Detection Delay (s)",
+        color="Sensor Installed",
+        title="Detection Delay by Fault Location",
+        labels={
+            "Position": "Machine Position",
+            "Average Detection Delay (s)":
+                "Average Detection Delay (seconds)",
+        },
+    )
+
+    st.plotly_chart(chart, width="stretch")
+
+    st.subheader("Location Analysis")
+
+    st.dataframe(
+        blind_df,
+        width="stretch",
+        hide_index=True,
+    )
+
+    slowest = blind_df.sort_values(
+        "Average Detection Delay (s)",
+        ascending=False,
+        na_position="first",
+    ).iloc[0]
+
+    st.warning(
+        f"Potential blind spot: Position "
+        f"{int(slowest['Position'])}. "
+        "This location has the weakest observed "
+        "detection performance in the tested scenarios."
+    )
+
+    st.caption(
+        "Blind spots are estimated from simplified simulated "
+        "fault scenarios. A long detection delay is not the "
+        "same as a completely missed fault."
+    )
