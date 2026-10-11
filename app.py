@@ -921,3 +921,397 @@ if optimization_result is not None:
 
     with st.expander("View Complete Optimization Data"):
         st.json(optimization_result)
+
+
+# ============================================================
+# FEEDBACK-DRIVEN LEARNING DASHBOARD
+# ============================================================
+
+st.divider()
+st.header("Feedback-Driven Learning")
+
+st.write(
+    "SensorScout remembers previously tested sensor layouts, "
+    "analyzes why experiments failed, and adapts its search "
+    "strategy in later optimization rounds."
+)
+
+st.caption(
+    "This is a rule-based feedback-driven optimization system. "
+    "It uses simulated experiments and does not retrain a "
+    "machine-learning model or call an external LLM."
+)
+
+learning_result = st.session_state.get("optimization_result")
+
+if learning_result is None:
+    st.info(
+        "Run Agent Optimization above to view the learning history."
+    )
+
+else:
+    learning_history = learning_result.get("history", [])
+    experiment_log = learning_result.get("experiment_log", [])
+
+    has_feedback_data = (
+        "total_evaluations" in learning_result
+        and "unique_configurations_tested" in learning_result
+    )
+
+    if not has_feedback_data:
+        st.info(
+            "These results were saved before feedback tracking "
+            "was added. Click Run Agent Optimization to generate "
+            "a new learning history."
+        )
+
+    else:
+        # ----------------------------------------------------
+        # EXPERIMENT MEMORY METRICS
+        # ----------------------------------------------------
+
+        st.subheader("Experiment Memory")
+
+        total_evaluations = learning_result.get(
+            "total_evaluations", 0
+        )
+
+        unique_configs = learning_result.get(
+            "unique_configurations_tested", 0
+        )
+
+        skipped_duplicates = sum(
+            step.get("skipped_duplicates", 0)
+            for step in learning_history[1:]
+        )
+
+        accepted_rounds = sum(
+            1
+            for step in learning_history[1:]
+            if step.get("accepted", False)
+        )
+
+        m1, m2, m3, m4 = st.columns(4)
+
+        m1.metric(
+            "Total Evaluations",
+            total_evaluations,
+        )
+
+        m2.metric(
+            "Unique Configurations",
+            unique_configs,
+        )
+
+        m3.metric(
+            "Duplicates Avoided",
+            skipped_duplicates,
+        )
+
+        m4.metric(
+            "Accepted Rounds",
+            accepted_rounds,
+        )
+
+        st.caption(
+            "Total evaluations include the baseline. "
+            "Duplicates avoided counts configurations skipped "
+            "because they were previously evaluated or selected."
+        )
+
+        # ----------------------------------------------------
+        # ROUND-BY-ROUND STRATEGY
+        # ----------------------------------------------------
+
+        st.subheader("Learning Across Rounds")
+
+        learning_rows = []
+
+        for step in learning_history[1:]:
+            learning_rows.append({
+                "Round": step.get("round"),
+                "Strategy": step.get(
+                    "strategy", "unknown"
+                ),
+                "New Evaluations": step.get(
+                    "evaluations", 0
+                ),
+                "Duplicates Skipped": step.get(
+                    "skipped_duplicates", 0
+                ),
+                "Accepted": (
+                    "Yes"
+                    if step.get("accepted", False)
+                    else "No"
+                ),
+                "Best Score": round(
+                    step.get("best_score", 0), 4
+                ),
+            })
+
+        if learning_rows:
+            learning_df = pd.DataFrame(learning_rows)
+
+            st.dataframe(
+                learning_df,
+                hide_index=True,
+                use_container_width=True,
+            )
+
+            # Strategy timeline
+            strategy_chart = px.scatter(
+                learning_df,
+                x="Round",
+                y="Strategy",
+                size="New Evaluations",
+                color="Accepted",
+                title="Search Strategy by Optimization Round",
+                hover_data=[
+                    "Duplicates Skipped",
+                    "Best Score",
+                ],
+            )
+
+            st.plotly_chart(
+                strategy_chart,
+                use_container_width=True,
+            )
+
+            evaluation_chart = px.bar(
+                learning_df,
+                x="Round",
+                y=[
+                    "New Evaluations",
+                    "Duplicates Skipped",
+                ],
+                barmode="group",
+                title="New Experiments vs Duplicate Candidates",
+            )
+
+            st.plotly_chart(
+                evaluation_chart,
+                use_container_width=True,
+            )
+
+        # ----------------------------------------------------
+        # REJECTION FEEDBACK
+        # ----------------------------------------------------
+
+        st.subheader("Why Experiments Failed")
+
+        rejection_summary = learning_result.get(
+            "rejection_summary", {}
+        )
+
+        if rejection_summary:
+            rejection_df = pd.DataFrame([
+                {
+                    "Rejection Reason": reason,
+                    "Count": count,
+                }
+                for reason, count
+                in rejection_summary.items()
+            ])
+
+            rejection_df = rejection_df.sort_values(
+                "Count",
+                ascending=False,
+            )
+
+            st.dataframe(
+                rejection_df,
+                hide_index=True,
+                use_container_width=True,
+            )
+
+            rejection_chart = px.bar(
+                rejection_df,
+                x="Count",
+                y="Rejection Reason",
+                orientation="h",
+                title="Experiment Rejection Reasons",
+            )
+
+            st.plotly_chart(
+                rejection_chart,
+                use_container_width=True,
+            )
+
+        else:
+            st.success(
+                "No rejected experiments were recorded."
+            )
+
+        # ----------------------------------------------------
+        # FEEDBACK EXPLANATIONS
+        # ----------------------------------------------------
+
+        st.subheader("How Feedback Changed the Search")
+
+        strategy_explanations = {
+            "balanced": (
+                "Explore both sampling-rate adjustments "
+                "and sensor relocations."
+            ),
+            "delay_focused": (
+                "Prioritize higher sampling rates to "
+                "investigate faster fault detection."
+            ),
+            "recall_aware": (
+                "Prioritize alternative sensor placements "
+                "after experiments lose fault recall."
+            ),
+            "cost_aware": (
+                "Prioritize lower sampling rates after "
+                "experiments exceed the cost limit."
+            ),
+            "explore": (
+                "Try a wider variety of configurations "
+                "to investigate new possibilities."
+            ),
+        }
+
+        for step in learning_history[1:]:
+            round_number = step.get("round")
+            strategy = step.get("strategy", "unknown")
+
+            with st.expander(
+                f"Round {round_number}: "
+                f"{strategy.replace('_', ' ').title()}"
+            ):
+                st.write(
+                    strategy_explanations.get(
+                        strategy,
+                        "Search strategy recorded.",
+                    )
+                )
+
+                st.write(
+                    step.get(
+                        "feedback",
+                        "No feedback summary available.",
+                    )
+                )
+
+                round_rejections = step.get(
+                    "rejection_reasons", {}
+                )
+
+                if round_rejections:
+                    st.markdown(
+                        "**Rejections during this round:**"
+                    )
+
+                    for reason, count in (
+                        round_rejections.items()
+                    ):
+                        st.write(
+                            f"- {reason}: {count}"
+                        )
+
+                if step.get("accepted", False):
+                    st.success(
+                        "An improved configuration "
+                        "was accepted in this round."
+                    )
+                else:
+                    st.warning(
+                        "No new configuration was accepted. "
+                        "The best previously accepted "
+                        "configuration was preserved."
+                    )
+
+        # ----------------------------------------------------
+        # INDIVIDUAL EXPERIMENT LOG
+        # ----------------------------------------------------
+
+        st.subheader("Experiment Explorer")
+
+        if experiment_log:
+            experiment_rows = []
+
+            for index, experiment in enumerate(
+                experiment_log, start=1
+            ):
+                metrics = experiment.get("metrics", {})
+                candidate = experiment.get("config", {})
+
+                experiment_rows.append({
+                    "Experiment": index,
+                    "Round": experiment.get("round"),
+                    "Strategy": experiment.get(
+                        "strategy", ""
+                    ),
+                    "Source": experiment.get(
+                        "source", ""
+                    ),
+                    "Positions": str(
+                        candidate.get(
+                            "sensor_positions", []
+                        )
+                    ),
+                    "Rates (Hz)": str(
+                        candidate.get(
+                            "sampling_rates_hz", []
+                        )
+                    ),
+                    "Score": round(
+                        metrics.get("score", 0), 4
+                    ),
+                    "Recall": metrics.get(
+                        "fault_recall", 0
+                    ),
+                    "Delay (s)": metrics.get(
+                        "mean_detection_delay_s"
+                    ),
+                    "Cost": metrics.get(
+                        "sensor_cost_units"
+                    ),
+                    "Passed Acceptance Rules": (
+                        experiment.get(
+                            "accepted", False
+                        )
+                    ),
+                    "Reason": experiment.get(
+                        "reason", ""
+                    ),
+                })
+
+            experiment_df = pd.DataFrame(
+                experiment_rows
+            )
+
+            st.dataframe(
+                experiment_df,
+                hide_index=True,
+                use_container_width=True,
+            )
+
+            st.download_button(
+                "Download Experiment History (CSV)",
+                data=experiment_df.to_csv(
+                    index=False
+                ),
+                file_name=(
+                    "sensorscout_experiment_history.csv"
+                ),
+                mime="text/csv",
+            )
+
+            st.caption(
+                "Passing acceptance rules means a candidate "
+                "was eligible for selection; it does not mean "
+                "it became the final accepted configuration."
+            )
+
+        else:
+            st.info(
+                "No individual experiment history "
+                "is available."
+            )
+
+        st.caption(
+            "All experiments use simulated validation "
+            "scenarios. Performance on independent held-out "
+            "scenarios has not yet been demonstrated."
+        )

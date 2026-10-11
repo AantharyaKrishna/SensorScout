@@ -1,6 +1,7 @@
 
 import random
 from itertools import product
+from collections import Counter
 
 from src.agents import (
     ChallengerAgent,
@@ -26,6 +27,7 @@ RATES = (5, 10, 20)
 
 MAX_COST_INCREASE = 1.15
 MIN_DELAY_IMPROVEMENT = 0.01
+EVALUATIONS_PER_ROUND = 12
 
 
 # -------------------------------------------------
@@ -33,9 +35,6 @@ MIN_DELAY_IMPROVEMENT = 0.01
 # -------------------------------------------------
 
 def mock_evaluator(config, scenario_set="validation", seed=42):
-    """
-    Compatibility wrapper for the real simulator.
-    """
     return evaluate_configuration(
         config,
         scenario_set=scenario_set,
@@ -49,30 +48,22 @@ def mock_evaluator(config, scenario_set="validation", seed=42):
 
 def copy_config(config):
     return {
-        "sensor_positions": config["sensor_positions"].copy(),
-        "sampling_rates_hz": config["sampling_rates_hz"].copy(),
+        "sensor_positions": list(config["sensor_positions"]),
+        "sampling_rates_hz": list(config["sampling_rates_hz"]),
     }
 
 
 def config_key(config):
     """
-    Treat equivalent sensor-position/rate pairs
-    as the same configuration.
+    Equivalent sensor-position/rate pairs share a key.
     """
-    return tuple(
-        sorted(
-            zip(
-                config["sensor_positions"],
-                config["sampling_rates_hz"],
-            )
-        )
-    )
+    return tuple(sorted(zip(
+        config["sensor_positions"],
+        config["sampling_rates_hz"],
+    )))
 
 
 def random_configuration(rng):
-    """
-    Generate a valid random sensor configuration.
-    """
     return {
         "sensor_positions": rng.sample(list(POSITIONS), 3),
         "sampling_rates_hz": [
@@ -82,45 +73,33 @@ def random_configuration(rng):
 
 
 # -------------------------------------------------
-# TARGETED EXPERIMENT GENERATION
+# EXPERIMENT GENERATION
 # -------------------------------------------------
 
 def targeted_configurations(config, diagnosis):
     """
-    Generate candidate experiments.
-
-    1. Test all 27 sampling-rate combinations
-       at the current sensor positions.
-
-    2. Test relocating each sensor toward the
-       diagnosed weak position.
-
-    These are simulated experiments, not physical
-    changes to real equipment.
+    Generate rate changes and sensor relocations.
     """
-    positions = config["sensor_positions"].copy()
-    rates = config["sampling_rates_hz"].copy()
-
+    positions = list(config["sensor_positions"])
+    rates = list(config["sampling_rates_hz"])
     seen = {config_key(config)}
 
-    # Experiment A: sampling-rate combinations
     for combination in product(RATES, repeat=3):
         candidate = {
             "sensor_positions": positions.copy(),
             "sampling_rates_hz": list(combination),
         }
-
         key = config_key(candidate)
 
         if key not in seen:
             seen.add(key)
             yield candidate
 
-    # Experiment B: sensor relocation
     weak_position = diagnosis.get("weak_position")
 
     if (
         weak_position is not None
+        and weak_position in POSITIONS
         and weak_position not in positions
     ):
         for index in range(3):
@@ -130,18 +109,11 @@ def targeted_configurations(config, diagnosis):
             if len(set(new_positions)) != 3:
                 continue
 
-            for combination in [
-                rates,
-                [10, 10, 10],
-                [20, 10, 10],
-                [10, 20, 10],
-                [10, 10, 20],
-            ]:
+            for combination in product(RATES, repeat=3):
                 candidate = {
                     "sensor_positions": new_positions.copy(),
                     "sampling_rates_hz": list(combination),
                 }
-
                 key = config_key(candidate)
 
                 if key not in seen:
@@ -149,43 +121,150 @@ def targeted_configurations(config, diagnosis):
                     yield candidate
 
 
+def feedback_strategy(rejection_counts, round_number):
+    """
+    Use previous rejection reasons to select
+    the next search approach.
+    """
+    if not rejection_counts:
+        return "balanced"
+
+    cost_failures = sum(
+        count
+        for reason, count in rejection_counts.items()
+        if "cost" in reason.lower()
+    )
+
+    delay_failures = sum(
+        count
+        for reason, count in rejection_counts.items()
+        if "delay" in reason.lower()
+        or "slower" in reason.lower()
+    )
+
+    recall_failures = sum(
+        count
+        for reason, count in rejection_counts.items()
+        if "recall" in reason.lower()
+        or "missed" in reason.lower()
+    )
+
+    if cost_failures > max(delay_failures, recall_failures):
+        return "cost_aware"
+
+    if recall_failures > max(cost_failures, delay_failures):
+        return "recall_aware"
+
+    if delay_failures > 0:
+        return "delay_focused"
+
+    return "explore" if round_number % 2 == 0 else "balanced"
+
+
+def candidate_stream(
+    config,
+    diagnosis,
+    strategy,
+    rng,
+):
+    """
+    Different strategies change which candidates
+    are evaluated first.
+    """
+    candidates = list(targeted_configurations(
+        config, diagnosis
+    ))
+
+    current_positions = set(config["sensor_positions"])
+
+    if strategy == "cost_aware":
+        candidates.sort(
+            key=lambda c: (
+                sum(c["sampling_rates_hz"]),
+                len(
+                    set(c["sensor_positions"])
+                    ^ current_positions
+                ),
+            )
+        )
+
+    elif strategy == "delay_focused":
+        candidates.sort(
+            key=lambda c: (
+                -sum(c["sampling_rates_hz"]),
+                len(
+                    set(c["sensor_positions"])
+                    ^ current_positions
+                ),
+            )
+        )
+
+    elif strategy == "recall_aware":
+        candidates.sort(
+            key=lambda c: (
+                -len(
+                    set(c["sensor_positions"])
+                    ^ current_positions
+                ),
+                -sum(c["sampling_rates_hz"]),
+            )
+        )
+
+    elif strategy == "explore":
+        rng.shuffle(candidates)
+
+    else:
+        # Alternate rate tuning and relocation.
+        rate_changes = [
+            c for c in candidates
+            if c["sensor_positions"]
+            == config["sensor_positions"]
+        ]
+        relocations = [
+            c for c in candidates
+            if c["sensor_positions"]
+            != config["sensor_positions"]
+        ]
+
+        candidates = []
+        while rate_changes or relocations:
+            if rate_changes:
+                candidates.append(rate_changes.pop(0))
+            if relocations:
+                candidates.append(relocations.pop(0))
+
+    return candidates
+
+
 # -------------------------------------------------
 # BLIND-SPOT ANALYSIS
 # -------------------------------------------------
 
 def location_statistics(metrics, position):
-    """
-    Calculate detection performance for a fault
-    originating at one machine position.
-    """
     scenarios = [
-        scenario
-        for scenario in metrics.get("scenario_results", [])
-        if scenario.get("fault_position") == position
-        and scenario.get("fault_type") != "healthy"
+        s for s in metrics.get("scenario_results", [])
+        if s.get("fault_position") == position
+        and s.get("fault_type") != "healthy"
     ]
 
     missed = sum(
-        1 for scenario in scenarios
-        if not scenario.get("detected", False)
+        not s.get("detected", False)
+        for s in scenarios
     )
 
     delays = [
-        scenario["detection_delay_s"]
-        for scenario in scenarios
-        if scenario.get("detected", False)
-        and scenario.get("detection_delay_s") is not None
+        s["detection_delay_s"]
+        for s in scenarios
+        if s.get("detected", False)
+        and s.get("detection_delay_s") is not None
     ]
-
-    average_delay = (
-        sum(delays) / len(delays)
-        if delays
-        else None
-    )
 
     return {
         "missed_faults": missed,
-        "average_delay_s": average_delay,
+        "average_delay_s": (
+            sum(delays) / len(delays)
+            if delays else None
+        ),
     }
 
 
@@ -198,19 +277,10 @@ def meets_improvement_policy(
     candidate_metrics,
     weak_position=None,
 ):
-    """
-    Accept only when:
-
-    - Fault recall is preserved.
-    - Average detection delay improves.
-    - Cost is within the allowed increase.
-    - The diagnosed weak position does not become
-      slower or lose previously detected faults.
-    """
-    old_recall = current_metrics["fault_recall"]
-    new_recall = candidate_metrics["fault_recall"]
-
-    if new_recall + 1e-9 < old_recall:
+    if (
+        candidate_metrics["fault_recall"] + 1e-9
+        < current_metrics["fault_recall"]
+    ):
         return False, "Fault recall decreased."
 
     old_delay = current_metrics.get(
@@ -224,50 +294,41 @@ def meets_improvement_policy(
         return False, "Detection delay is unavailable."
 
     if new_delay >= old_delay - MIN_DELAY_IMPROVEMENT:
-        return False, (
-            "Average detection delay did not improve."
-        )
+        return False, "Average detection delay did not improve."
 
-    old_cost = current_metrics["sensor_cost_units"]
-    new_cost = candidate_metrics["sensor_cost_units"]
-
-    if new_cost > old_cost * MAX_COST_INCREASE:
-        return False, (
-            "Sensor cost exceeds the allowed increase."
-        )
+    if (
+        candidate_metrics["sensor_cost_units"]
+        > current_metrics["sensor_cost_units"]
+        * MAX_COST_INCREASE
+    ):
+        return False, "Sensor cost exceeds the allowed increase."
 
     if weak_position is not None:
         old_location = location_statistics(
-            current_metrics,
-            weak_position,
+            current_metrics, weak_position
         )
         new_location = location_statistics(
-            candidate_metrics,
-            weak_position,
+            candidate_metrics, weak_position
         )
 
         if (
             new_location["missed_faults"]
             > old_location["missed_faults"]
         ):
-            return False, (
-                "The blind spot has more missed faults."
-            )
+            return False, "The blind spot has more missed faults."
 
-        old_weak_delay = old_location["average_delay_s"]
-        new_weak_delay = new_location["average_delay_s"]
+        old_weak = old_location["average_delay_s"]
+        new_weak = new_location["average_delay_s"]
 
         if (
-            old_weak_delay is not None
+            old_weak is not None
             and (
-                new_weak_delay is None
-                or new_weak_delay
-                > old_weak_delay + 1e-9
+                new_weak is None
+                or new_weak > old_weak + 1e-9
             )
         ):
             return False, (
-                "Detection at the diagnosed blind spot "
-                "became slower."
+                "Detection at the diagnosed blind spot became slower."
             )
 
     return True, (
@@ -285,12 +346,6 @@ def candidate_priority(
     candidate_metrics,
     weak_position=None,
 ):
-    """
-    Rank acceptable candidates.
-
-    Prefer improving the diagnosed blind spot,
-    then overall detection delay, then score/cost.
-    """
     old_delay = current_metrics.get(
         "mean_detection_delay_s"
     )
@@ -300,8 +355,7 @@ def candidate_priority(
 
     overall_gain = (
         old_delay - new_delay
-        if old_delay is not None
-        and new_delay is not None
+        if old_delay is not None and new_delay is not None
         else float("-inf")
     )
 
@@ -309,12 +363,10 @@ def candidate_priority(
 
     if weak_position is not None:
         old_location = location_statistics(
-            current_metrics,
-            weak_position,
+            current_metrics, weak_position
         )
         new_location = location_statistics(
-            candidate_metrics,
-            weak_position,
+            candidate_metrics, weak_position
         )
 
         old_weak = old_location["average_delay_s"]
@@ -332,7 +384,7 @@ def candidate_priority(
 
 
 # -------------------------------------------------
-# TARGETED SEARCH
+# TARGETED SEARCH (COMPATIBILITY)
 # -------------------------------------------------
 
 def choose_targeted_candidate(
@@ -344,30 +396,18 @@ def choose_targeted_candidate(
     seed,
     strategist,
 ):
-    """
-    Evaluate targeted candidates and return the
-    strongest candidate satisfying both the
-    improvement policy and Strategist.
-    """
     best_candidate = None
     best_metrics = None
     best_priority = None
 
-    seen = set()
-
-    weak_position = diagnosis.get("weak_position")
-
-    for candidate in targeted_configurations(
-        config,
-        diagnosis,
-    ):
+    for candidate in targeted_configurations(config, diagnosis):
         key = config_key(candidate)
 
-        if key in tried_configs or key in seen:
+        if key in tried_configs:
             continue
 
-        seen.add(key)
         validate_proposal(candidate)
+        tried_configs.add(key)
 
         metrics = evaluator(
             candidate,
@@ -378,16 +418,13 @@ def choose_targeted_candidate(
         policy_ok, _ = meets_improvement_policy(
             current_metrics,
             metrics,
-            weak_position,
+            diagnosis.get("weak_position"),
         )
 
         if not policy_ok:
             continue
 
-        decision = strategist.decide(
-            current_metrics,
-            metrics,
-        )
+        decision = strategist.decide(current_metrics, metrics)
 
         if not decision["accepted"]:
             continue
@@ -395,13 +432,10 @@ def choose_targeted_candidate(
         priority = candidate_priority(
             current_metrics,
             metrics,
-            weak_position,
+            diagnosis.get("weak_position"),
         )
 
-        if (
-            best_priority is None
-            or priority > best_priority
-        ):
+        if best_priority is None or priority > best_priority:
             best_candidate = candidate
             best_metrics = metrics
             best_priority = priority
@@ -410,29 +444,19 @@ def choose_targeted_candidate(
 
 
 # -------------------------------------------------
-# MAIN OPTIMIZATION LOOP
+# FEEDBACK-DRIVEN OPTIMIZATION
 # -------------------------------------------------
 
-def run_optimization(rounds=5, evaluator=None, seed=42):
+def run_optimization(
+    rounds=5,
+    evaluator=None,
+    seed=42,
+    evaluations_per_round=EVALUATIONS_PER_ROUND,
+):
     """
-    SensorScout's four-agent optimization process.
+    Feedback-driven, simulation-guided four-agent loop.
 
-    Challenger:
-        Identifies a monitoring weakness.
-
-    Diagnosis:
-        Explains the weakness.
-
-    Designer:
-        Proposes a sensor change.
-
-    Targeted search:
-        Tests alternatives using simulation.
-
-    Strategist:
-        Decides whether to accept an experiment.
-
-    Fast mode: no external LLM calls.
+    Fast demo mode does not call an external LLM.
     """
     if evaluator is None:
         evaluator = evaluate_configuration
@@ -445,229 +469,249 @@ def run_optimization(rounds=5, evaluator=None, seed=42):
     strategist = StrategistAgent()
 
     best_config = copy_config(BASELINE)
-
     best_metrics = evaluator(
         best_config,
         scenario_set="validation",
         seed=seed,
     )
 
-    tried_configs = {
-        config_key(best_config)
-    }
+    tried_configs = {config_key(best_config)}
+    experiment_log = []
+    rejection_counts = Counter()
 
-    history = [
-        {
-            "round": 0,
-            "config": copy_config(best_config),
-            "metrics": best_metrics,
-            "best_score": best_metrics["score"],
-            "accepted": True,
-            "proposal_source": "baseline",
-        }
-    ]
+    history = [{
+        "round": 0,
+        "config": copy_config(best_config),
+        "metrics": best_metrics,
+        "best_score": best_metrics["score"],
+        "accepted": True,
+        "proposal_source": "baseline",
+        "evaluations": 1,
+        "skipped_duplicates": 0,
+        "strategy": "baseline",
+        "feedback": "Initial sensor configuration.",
+    }]
 
     for round_number in range(1, rounds + 1):
-
-        # -----------------------------------------
-        # 1. CHALLENGER
-        # -----------------------------------------
-
         challenge = challenger.challenge(
             best_config,
             rng,
             metrics=best_metrics,
         )
 
-        # -----------------------------------------
-        # 2. DIAGNOSIS
-        # -----------------------------------------
-
         diagnosis = diagnosis_agent.diagnose(
             best_config,
             challenge,
         )
 
-        weak_position = diagnosis.get(
-            "weak_position"
+        weak_position = diagnosis.get("weak_position")
+        strategy = feedback_strategy(
+            rejection_counts,
+            round_number,
         )
-
-        # -----------------------------------------
-        # 3. DESIGNER
-        # -----------------------------------------
 
         proposal = designer.propose(
             best_config,
             diagnosis,
             rng,
         )
-
         validate_proposal(proposal)
 
-        candidates = []
+        candidates = [
+            ("rule_based_designer", proposal)
+        ]
 
-        proposal_key = config_key(proposal)
+        candidates.extend(
+            ("targeted_search", candidate)
+            for candidate in candidate_stream(
+                best_config,
+                diagnosis,
+                strategy,
+                rng,
+            )
+        )
 
-        if proposal_key not in tried_configs:
-            proposal_metrics = evaluator(
-                proposal,
+        # Include exploratory configurations when
+        # feedback calls for broader investigation.
+        if strategy == "explore":
+            candidates.extend(
+                ("random_exploration", random_configuration(rng))
+                for _ in range(evaluations_per_round * 3)
+            )
+
+        round_experiments = []
+        skipped_duplicates = 0
+        accepted_candidates = []
+        evaluated_count = 0
+
+        for source, candidate in candidates:
+            key = config_key(candidate)
+
+            if key in tried_configs:
+                skipped_duplicates += 1
+                continue
+
+            if evaluated_count >= evaluations_per_round:
+                break
+
+            validate_proposal(candidate)
+            tried_configs.add(key)
+
+            metrics = evaluator(
+                candidate,
                 scenario_set="validation",
                 seed=seed,
             )
+            evaluated_count += 1
 
-            policy_ok, _ = meets_improvement_policy(
+            policy_ok, policy_reason = meets_improvement_policy(
                 best_metrics,
-                proposal_metrics,
+                metrics,
                 weak_position,
             )
 
             strategist_decision = strategist.decide(
                 best_metrics,
-                proposal_metrics,
+                metrics,
             )
 
-            if (
+            accepted = (
                 policy_ok
                 and strategist_decision["accepted"]
-            ):
-                candidates.append(
-                    (
-                        proposal,
-                        proposal_metrics,
-                        "rule_based_designer",
-                    )
-                )
-
-        # -----------------------------------------
-        # 4. TARGETED SEARCH
-        # -----------------------------------------
-
-        targeted_proposal, targeted_metrics = (
-            choose_targeted_candidate(
-                best_config,
-                diagnosis,
-                best_metrics,
-                evaluator,
-                tried_configs,
-                seed,
-                strategist,
             )
-        )
 
-        if targeted_proposal is not None:
-            candidates.append(
-                (
-                    targeted_proposal,
-                    targeted_metrics,
-                    "targeted_search",
+            reason = (
+                policy_reason
+                if not policy_ok
+                else strategist_decision.get(
+                    "reason",
+                    "Candidate evaluated.",
                 )
             )
 
-        # -----------------------------------------
-        # 5. SELECT CANDIDATE
-        # -----------------------------------------
+            experiment = {
+                "round": round_number,
+                "config": copy_config(candidate),
+                "metrics": metrics,
+                "source": source,
+                "accepted": accepted,
+                "reason": reason,
+                "strategy": strategy,
+            }
 
-        if candidates:
-            candidate, candidate_metrics, source = max(
-                candidates,
+            round_experiments.append(experiment)
+            experiment_log.append(experiment)
+
+            if accepted:
+                accepted_candidates.append(experiment)
+            else:
+                rejection_counts[reason] += 1
+
+        if accepted_candidates:
+            selected = max(
+                accepted_candidates,
                 key=lambda item: candidate_priority(
                     best_metrics,
-                    item[1],
+                    item["metrics"],
                     weak_position,
                 ),
             )
 
-        else:
-            # No acceptable improvement was found.
-            # Record an attempted Designer proposal,
-            # without changing the best configuration.
-            candidate = proposal
-            source = "rule_based_designer"
+            candidate = selected["config"]
+            candidate_metrics = selected["metrics"]
+            source = selected["source"]
+            accepted = True
 
-            candidate_metrics = evaluator(
-                candidate,
-                scenario_set="validation",
-                seed=seed,
-            )
-
-        validate_proposal(candidate)
-
-        tried_configs.add(
-            config_key(candidate)
-        )
-
-        # -----------------------------------------
-        # 6. STRATEGIST DECISION
-        # -----------------------------------------
-
-        strategist_decision = strategist.decide(
-            best_metrics,
-            candidate_metrics,
-        )
-
-        policy_ok, policy_reason = (
-            meets_improvement_policy(
+            policy_ok, policy_reason = meets_improvement_policy(
                 best_metrics,
                 candidate_metrics,
                 weak_position,
             )
-        )
 
-        accepted = (
-            strategist_decision["accepted"]
-            and policy_ok
-        )
-
-        decision = dict(strategist_decision)
-
-        decision["accepted"] = accepted
-
-        if accepted:
-            decision["reason"] = (
-                "Accepted: "
-                + policy_reason
-            )
+            decision = {
+                "accepted": True,
+                "reason": "Accepted: " + policy_reason,
+            }
 
             best_config = copy_config(candidate)
             best_metrics = candidate_metrics
 
-        else:
-            decision["reason"] = (
-                "Rejected: "
-                + policy_reason
-                if not policy_ok
-                else (
-                    "Rejected by Strategist: "
-                    + strategist_decision.get(
-                        "reason",
-                        "Candidate did not meet acceptance criteria.",
-                    )
-                )
+        elif round_experiments:
+            # Display the best rejected experiment
+            # without changing the accepted configuration.
+            selected = max(
+                round_experiments,
+                key=lambda item: candidate_priority(
+                    best_metrics,
+                    item["metrics"],
+                    weak_position,
+                ),
             )
 
-        # -----------------------------------------
-        # 7. SAVE AGENT HISTORY
-        # -----------------------------------------
+            candidate = selected["config"]
+            candidate_metrics = selected["metrics"]
+            source = selected["source"]
+            accepted = False
 
-        history.append(
-            {
-                "round": round_number,
-                "challenge": challenge,
-                "diagnosis": diagnosis,
-                "config": copy_config(candidate),
-                "metrics": candidate_metrics,
-                "decision": decision,
-                "accepted": accepted,
-                "best_score": best_metrics["score"],
-                "proposal_source": source,
+            decision = {
+                "accepted": False,
+                "reason": "Rejected: " + selected["reason"],
             }
+
+        else:
+            # All available candidates were previously tested.
+            candidate = copy_config(best_config)
+            candidate_metrics = best_metrics
+            source = "no_new_candidate"
+            accepted = False
+
+            decision = {
+                "accepted": False,
+                "reason": (
+                    "No new configuration was evaluated "
+                    "in this round."
+                ),
+            }
+
+        feedback = (
+            f"Strategy: {strategy}. "
+            f"Evaluated {evaluated_count} new configurations; "
+            f"skipped {skipped_duplicates} duplicates. "
+            f"Accepted improvement: {accepted}."
         )
+
+        history.append({
+            "round": round_number,
+            "challenge": challenge,
+            "diagnosis": diagnosis,
+            "config": copy_config(candidate),
+            "metrics": candidate_metrics,
+            "decision": decision,
+            "accepted": accepted,
+            "best_score": best_metrics["score"],
+            "proposal_source": source,
+            "evaluations": evaluated_count,
+            "skipped_duplicates": skipped_duplicates,
+            "strategy": strategy,
+            "feedback": feedback,
+            "rejection_reasons": dict(
+                Counter(
+                    exp["reason"]
+                    for exp in round_experiments
+                    if not exp["accepted"]
+                )
+            ),
+        })
 
     return {
         "baseline": copy_config(BASELINE),
         "best_config": copy_config(best_config),
         "best_metrics": best_metrics,
         "history": history,
+        "experiment_log": experiment_log,
+        "total_evaluations": 1 + len(experiment_log),
+        "unique_configurations_tested": len(tried_configs),
+        "rejection_summary": dict(rejection_counts),
         "evaluator_mode": (
             "mock"
             if evaluator is mock_evaluator
