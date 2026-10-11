@@ -1,0 +1,998 @@
+{
+  "scenario_set": "test",
+  "scenario_seed": 98765,
+  "configuration_count": 12,
+  "workers": 4,
+  "sequential_seconds": 1.5735354160424322,
+  "parallel_seconds": 1.5404300410300493,
+  "speedup": 1.021490995456208,
+  "results_equivalent": true,
+  "sequential_results": [
+    {
+      "config": {
+        "sensor_positions": [
+          1,
+          2,
+          4
+        ],
+        "sampling_rates_hz": [
+          20,
+          20,
+          5
+        ]
+      },
+      "metrics": {
+        "config": {
+          "sensor_positions": [
+            1,
+            2,
+            4
+          ],
+          "sampling_rates_hz": [
+            20,
+            20,
+            5
+          ]
+        },
+        "scenario_set": "test",
+        "seed": 98765,
+        "fault_recall": 0.8333333333333334,
+        "precision": 1.0,
+        "false_alarm_rate": 0.0,
+        "mean_detection_delay_s": 32.5475,
+        "sensor_cost_units": 390,
+        "score": 69.73712797619048,
+        "score_version": "v2_delay",
+        "delay_penalty": 0.505703125,
+        "faults_detected": 20,
+        "faults_missed": 4,
+        "false_alarm_windows": 0
+      }
+    },
+    {
+      "config": {
+        "sensor_positions": [
+          3,
+          4,
+          6
+        ],
+        "sampling_rates_hz": [
+          20,
+          10,
+          20
+        ]
+      },
+      "metrics": {
+        "config": {
+          "sensor_positions": [
+            3,
+            4,
+            6
+          ],
+          "sampling_rates_hz": [
+            20,
+            10,
+            20
+          ]
+        },
+        "scenario_set": "test",
+        "seed": 98765,
+        "fault_recall": 0.875,
+        "precision": 1.0,
+        "false_alarm_rate": 0.0,
+        "mean_detection_delay_s": 34.5952380952381,
+        "sensor_cost_units": 400,
+        "score": 73.8608630952381,
+        "score_version": "v2_delay",
+        "delay_penalty": 0.5033854166666667,
+        "faults_detected": 21,
+        "faults_missed": 3,
+        "false_alarm_windows": 0
+      }
+    },
+    {
+      "config": {
+        "sensor_positions": [
+          4,
+          6,
+          7
+        ],
+        "sampling_rates_hz": [
+          10,
+          5,
+          5
+        ]
+      },
+      "metrics": {
+        "config": {
+          "sensor_positions": [
+            4,
+            6,
+            7
+          ],
+          "sampling_rates_hz": [
+            10,
+            5,
+            5
+          ]
+        },
+        "scenario_set": "test",
+        "seed": 98765,
+        "fault_recall": 0.7083333333333334,
+        "precision": 1.0,
+        "false_alarm_rate": 0.0,
+        "mean_detection_delay_s": 31.347058823529416,
+        "sensor_cost_units": 340,
+        "score": 56.41324404761905,
+        "score_version": "v2_delay",
+        "delay_penalty": 0.56921875,
+        "faults_detected": 17,
+        "faults_missed": 7,
+        "false_alarm_windows": 0
+      }
+    },
+    {
+      "config": {
+        "sensor_positions": [
+          0,
+          1,
+          2
+        ],
+        "sampling_rates_hz": [
+          5,
+          10,
+          5
+        ]
+      },
+      "metrics": {
+        "config": {
+          "sensor_positions": [
+            0,
+            1,
+            2
+          ],
+          "sampling_rates_hz": [
+            5,
+            10,
+            5
+          ]
+        },
+        "scenario_set": "test",
+        "seed": 98765,
+        "fault_recall": 0.5833333333333334,
+        "precision": 1.0,
+        "false_alarm_rate": 0.0,
+        "mean_detection_delay_s": 30.28571428571429,
+        "sensor_cost_units": 340,
+        "score": 42.54761904761905,
+        "score_version": "v2_delay",
+        "delay_penalty": 0.6375,
+        "faults_detected": 14,
+        "faults_missed": 10,
+        "false_alarm_windows": 0
+      }
+    },
+    {
+      "config": {
+        "sensor_positions": [
+          2,
+          5,
+          7
+        ],
+        "sampling_rates_hz": [
+          5,
+          10,
+          10
+        ]
+      },
+      "metrics": {
+        "config": {
+          "sensor_positions": [
+            2,
+            5,
+            7
+          ],
+          "sampling_rates_hz": [
+            5,
+            10,
+            10
+          ]
+        },
+        "scenario_set": "test",
+        "seed": 98765,
+        "fault_recall": 0.9583333333333334,
+        "precision": 1.0,
+        "false_alarm_rate": 0.0,
+        "mean_detection_delay_s": 33.70000000000001,
+        "sensor_cost_units": 350,
+        "score": 83.80104166666668,
+        "score_version": "v2_delay",
+        "delay_penalty": 0.4453645833333334,
+        "faults_detected": 23,
+        "faults_missed": 1,
+        "false_alarm_windows": 0
+      }
+    },
+    {
+      "config": {
+        "sensor_positions": [
+          2,
+          3,
+          5
+        ],
+        "sampling_rates_hz": [
+          20,
+          20,
+          20
+        ]
+      },
+      "metrics": {
+        "config": {
+          "sensor_positions": [
+            2,
+            3,
+            5
+          ],
+          "sampling_rates_hz": [
+            20,
+            20,
+            20
+          ]
+        },
+        "scenario_set": "test",
+        "seed": 98765,
+        "fault_recall": 0.9166666666666666,
+        "precision": 1.0,
+        "false_alarm_rate": 0.0,
+        "mean_detection_delay_s": 34.28181818181818,
+        "sensor_cost_units": 420,
+        "score": 78.39374999999998,
+        "score_version": "v2_delay",
+        "delay_penalty": 0.4761458333333334,
+        "faults_detected": 22,
+        "faults_missed": 2,
+        "false_alarm_windows": 0
+      }
+    },
+    {
+      "config": {
+        "sensor_positions": [
+          1,
+          2,
+          5
+        ],
+        "sampling_rates_hz": [
+          5,
+          20,
+          20
+        ]
+      },
+      "metrics": {
+        "config": {
+          "sensor_positions": [
+            1,
+            2,
+            5
+          ],
+          "sampling_rates_hz": [
+            5,
+            20,
+            20
+          ]
+        },
+        "scenario_set": "test",
+        "seed": 98765,
+        "fault_recall": 0.9583333333333334,
+        "precision": 1.0,
+        "false_alarm_rate": 0.0,
+        "mean_detection_delay_s": 32.980434782608704,
+        "sensor_cost_units": 390,
+        "score": 83.61629464285716,
+        "score_version": "v2_delay",
+        "delay_penalty": 0.4367447916666667,
+        "faults_detected": 23,
+        "faults_missed": 1,
+        "false_alarm_windows": 0
+      }
+    },
+    {
+      "config": {
+        "sensor_positions": [
+          2,
+          3,
+          4
+        ],
+        "sampling_rates_hz": [
+          5,
+          20,
+          20
+        ]
+      },
+      "metrics": {
+        "config": {
+          "sensor_positions": [
+            2,
+            3,
+            4
+          ],
+          "sampling_rates_hz": [
+            5,
+            20,
+            20
+          ]
+        },
+        "scenario_set": "test",
+        "seed": 98765,
+        "fault_recall": 0.7916666666666666,
+        "precision": 1.0,
+        "false_alarm_rate": 0.0,
+        "mean_detection_delay_s": 35.347368421052636,
+        "sensor_cost_units": 390,
+        "score": 64.5220238095238,
+        "score_version": "v2_delay",
+        "delay_penalty": 0.5581250000000001,
+        "faults_detected": 19,
+        "faults_missed": 5,
+        "false_alarm_windows": 0
+      }
+    },
+    {
+      "config": {
+        "sensor_positions": [
+          0,
+          4,
+          5
+        ],
+        "sampling_rates_hz": [
+          10,
+          10,
+          10
+        ]
+      },
+      "metrics": {
+        "config": {
+          "sensor_positions": [
+            0,
+            4,
+            5
+          ],
+          "sampling_rates_hz": [
+            10,
+            10,
+            10
+          ]
+        },
+        "scenario_set": "test",
+        "seed": 98765,
+        "fault_recall": 0.9166666666666666,
+        "precision": 1.0,
+        "false_alarm_rate": 0.0,
+        "mean_detection_delay_s": 35.25000000000001,
+        "sensor_cost_units": 360,
+        "score": 78.70758928571428,
+        "score_version": "v2_delay",
+        "delay_penalty": 0.4872395833333334,
+        "faults_detected": 22,
+        "faults_missed": 2,
+        "false_alarm_windows": 0
+      }
+    },
+    {
+      "config": {
+        "sensor_positions": [
+          0,
+          3,
+          6
+        ],
+        "sampling_rates_hz": [
+          20,
+          20,
+          10
+        ]
+      },
+      "metrics": {
+        "config": {
+          "sensor_positions": [
+            0,
+            3,
+            6
+          ],
+          "sampling_rates_hz": [
+            20,
+            20,
+            10
+          ]
+        },
+        "scenario_set": "test",
+        "seed": 98765,
+        "fault_recall": 1.0,
+        "precision": 1.0,
+        "false_alarm_rate": 0.0,
+        "mean_detection_delay_s": 30.925,
+        "sensor_cost_units": 400,
+        "score": 88.69732142857143,
+        "score_version": "v2_delay",
+        "delay_penalty": 0.38656250000000003,
+        "faults_detected": 24,
+        "faults_missed": 0,
+        "false_alarm_windows": 0
+      }
+    },
+    {
+      "config": {
+        "sensor_positions": [
+          1,
+          3,
+          4
+        ],
+        "sampling_rates_hz": [
+          20,
+          10,
+          10
+        ]
+      },
+      "metrics": {
+        "config": {
+          "sensor_positions": [
+            1,
+            3,
+            4
+          ],
+          "sampling_rates_hz": [
+            20,
+            10,
+            10
+          ]
+        },
+        "scenario_set": "test",
+        "seed": 98765,
+        "fault_recall": 0.8333333333333334,
+        "precision": 1.0,
+        "false_alarm_rate": 0.0,
+        "mean_detection_delay_s": 31.610000000000003,
+        "sensor_cost_units": 380,
+        "score": 70.0217261904762,
+        "score_version": "v2_delay",
+        "delay_penalty": 0.49593750000000003,
+        "faults_detected": 20,
+        "faults_missed": 4,
+        "false_alarm_windows": 0
+      }
+    },
+    {
+      "config": {
+        "sensor_positions": [
+          0,
+          1,
+          4
+        ],
+        "sampling_rates_hz": [
+          5,
+          5,
+          20
+        ]
+      },
+      "metrics": {
+        "config": {
+          "sensor_positions": [
+            0,
+            1,
+            4
+          ],
+          "sampling_rates_hz": [
+            5,
+            5,
+            20
+          ]
+        },
+        "scenario_set": "test",
+        "seed": 98765,
+        "fault_recall": 0.8333333333333334,
+        "precision": 1.0,
+        "false_alarm_rate": 0.0,
+        "mean_detection_delay_s": 32.207499999999996,
+        "sensor_cost_units": 360,
+        "score": 70.07581845238097,
+        "score_version": "v2_delay",
+        "delay_penalty": 0.5021614583333334,
+        "faults_detected": 20,
+        "faults_missed": 4,
+        "false_alarm_windows": 0
+      }
+    }
+  ],
+  "parallel_results": [
+    {
+      "config": {
+        "sensor_positions": [
+          1,
+          2,
+          4
+        ],
+        "sampling_rates_hz": [
+          20,
+          20,
+          5
+        ]
+      },
+      "metrics": {
+        "config": {
+          "sensor_positions": [
+            1,
+            2,
+            4
+          ],
+          "sampling_rates_hz": [
+            20,
+            20,
+            5
+          ]
+        },
+        "scenario_set": "test",
+        "seed": 98765,
+        "fault_recall": 0.8333333333333334,
+        "precision": 1.0,
+        "false_alarm_rate": 0.0,
+        "mean_detection_delay_s": 32.5475,
+        "sensor_cost_units": 390,
+        "score": 69.73712797619048,
+        "score_version": "v2_delay",
+        "delay_penalty": 0.505703125,
+        "faults_detected": 20,
+        "faults_missed": 4,
+        "false_alarm_windows": 0
+      }
+    },
+    {
+      "config": {
+        "sensor_positions": [
+          3,
+          4,
+          6
+        ],
+        "sampling_rates_hz": [
+          20,
+          10,
+          20
+        ]
+      },
+      "metrics": {
+        "config": {
+          "sensor_positions": [
+            3,
+            4,
+            6
+          ],
+          "sampling_rates_hz": [
+            20,
+            10,
+            20
+          ]
+        },
+        "scenario_set": "test",
+        "seed": 98765,
+        "fault_recall": 0.875,
+        "precision": 1.0,
+        "false_alarm_rate": 0.0,
+        "mean_detection_delay_s": 34.5952380952381,
+        "sensor_cost_units": 400,
+        "score": 73.8608630952381,
+        "score_version": "v2_delay",
+        "delay_penalty": 0.5033854166666667,
+        "faults_detected": 21,
+        "faults_missed": 3,
+        "false_alarm_windows": 0
+      }
+    },
+    {
+      "config": {
+        "sensor_positions": [
+          4,
+          6,
+          7
+        ],
+        "sampling_rates_hz": [
+          10,
+          5,
+          5
+        ]
+      },
+      "metrics": {
+        "config": {
+          "sensor_positions": [
+            4,
+            6,
+            7
+          ],
+          "sampling_rates_hz": [
+            10,
+            5,
+            5
+          ]
+        },
+        "scenario_set": "test",
+        "seed": 98765,
+        "fault_recall": 0.7083333333333334,
+        "precision": 1.0,
+        "false_alarm_rate": 0.0,
+        "mean_detection_delay_s": 31.347058823529416,
+        "sensor_cost_units": 340,
+        "score": 56.41324404761905,
+        "score_version": "v2_delay",
+        "delay_penalty": 0.56921875,
+        "faults_detected": 17,
+        "faults_missed": 7,
+        "false_alarm_windows": 0
+      }
+    },
+    {
+      "config": {
+        "sensor_positions": [
+          0,
+          1,
+          2
+        ],
+        "sampling_rates_hz": [
+          5,
+          10,
+          5
+        ]
+      },
+      "metrics": {
+        "config": {
+          "sensor_positions": [
+            0,
+            1,
+            2
+          ],
+          "sampling_rates_hz": [
+            5,
+            10,
+            5
+          ]
+        },
+        "scenario_set": "test",
+        "seed": 98765,
+        "fault_recall": 0.5833333333333334,
+        "precision": 1.0,
+        "false_alarm_rate": 0.0,
+        "mean_detection_delay_s": 30.28571428571429,
+        "sensor_cost_units": 340,
+        "score": 42.54761904761905,
+        "score_version": "v2_delay",
+        "delay_penalty": 0.6375,
+        "faults_detected": 14,
+        "faults_missed": 10,
+        "false_alarm_windows": 0
+      }
+    },
+    {
+      "config": {
+        "sensor_positions": [
+          2,
+          5,
+          7
+        ],
+        "sampling_rates_hz": [
+          5,
+          10,
+          10
+        ]
+      },
+      "metrics": {
+        "config": {
+          "sensor_positions": [
+            2,
+            5,
+            7
+          ],
+          "sampling_rates_hz": [
+            5,
+            10,
+            10
+          ]
+        },
+        "scenario_set": "test",
+        "seed": 98765,
+        "fault_recall": 0.9583333333333334,
+        "precision": 1.0,
+        "false_alarm_rate": 0.0,
+        "mean_detection_delay_s": 33.70000000000001,
+        "sensor_cost_units": 350,
+        "score": 83.80104166666668,
+        "score_version": "v2_delay",
+        "delay_penalty": 0.4453645833333334,
+        "faults_detected": 23,
+        "faults_missed": 1,
+        "false_alarm_windows": 0
+      }
+    },
+    {
+      "config": {
+        "sensor_positions": [
+          2,
+          3,
+          5
+        ],
+        "sampling_rates_hz": [
+          20,
+          20,
+          20
+        ]
+      },
+      "metrics": {
+        "config": {
+          "sensor_positions": [
+            2,
+            3,
+            5
+          ],
+          "sampling_rates_hz": [
+            20,
+            20,
+            20
+          ]
+        },
+        "scenario_set": "test",
+        "seed": 98765,
+        "fault_recall": 0.9166666666666666,
+        "precision": 1.0,
+        "false_alarm_rate": 0.0,
+        "mean_detection_delay_s": 34.28181818181818,
+        "sensor_cost_units": 420,
+        "score": 78.39374999999998,
+        "score_version": "v2_delay",
+        "delay_penalty": 0.4761458333333334,
+        "faults_detected": 22,
+        "faults_missed": 2,
+        "false_alarm_windows": 0
+      }
+    },
+    {
+      "config": {
+        "sensor_positions": [
+          1,
+          2,
+          5
+        ],
+        "sampling_rates_hz": [
+          5,
+          20,
+          20
+        ]
+      },
+      "metrics": {
+        "config": {
+          "sensor_positions": [
+            1,
+            2,
+            5
+          ],
+          "sampling_rates_hz": [
+            5,
+            20,
+            20
+          ]
+        },
+        "scenario_set": "test",
+        "seed": 98765,
+        "fault_recall": 0.9583333333333334,
+        "precision": 1.0,
+        "false_alarm_rate": 0.0,
+        "mean_detection_delay_s": 32.980434782608704,
+        "sensor_cost_units": 390,
+        "score": 83.61629464285716,
+        "score_version": "v2_delay",
+        "delay_penalty": 0.4367447916666667,
+        "faults_detected": 23,
+        "faults_missed": 1,
+        "false_alarm_windows": 0
+      }
+    },
+    {
+      "config": {
+        "sensor_positions": [
+          2,
+          3,
+          4
+        ],
+        "sampling_rates_hz": [
+          5,
+          20,
+          20
+        ]
+      },
+      "metrics": {
+        "config": {
+          "sensor_positions": [
+            2,
+            3,
+            4
+          ],
+          "sampling_rates_hz": [
+            5,
+            20,
+            20
+          ]
+        },
+        "scenario_set": "test",
+        "seed": 98765,
+        "fault_recall": 0.7916666666666666,
+        "precision": 1.0,
+        "false_alarm_rate": 0.0,
+        "mean_detection_delay_s": 35.347368421052636,
+        "sensor_cost_units": 390,
+        "score": 64.5220238095238,
+        "score_version": "v2_delay",
+        "delay_penalty": 0.5581250000000001,
+        "faults_detected": 19,
+        "faults_missed": 5,
+        "false_alarm_windows": 0
+      }
+    },
+    {
+      "config": {
+        "sensor_positions": [
+          0,
+          4,
+          5
+        ],
+        "sampling_rates_hz": [
+          10,
+          10,
+          10
+        ]
+      },
+      "metrics": {
+        "config": {
+          "sensor_positions": [
+            0,
+            4,
+            5
+          ],
+          "sampling_rates_hz": [
+            10,
+            10,
+            10
+          ]
+        },
+        "scenario_set": "test",
+        "seed": 98765,
+        "fault_recall": 0.9166666666666666,
+        "precision": 1.0,
+        "false_alarm_rate": 0.0,
+        "mean_detection_delay_s": 35.25000000000001,
+        "sensor_cost_units": 360,
+        "score": 78.70758928571428,
+        "score_version": "v2_delay",
+        "delay_penalty": 0.4872395833333334,
+        "faults_detected": 22,
+        "faults_missed": 2,
+        "false_alarm_windows": 0
+      }
+    },
+    {
+      "config": {
+        "sensor_positions": [
+          0,
+          3,
+          6
+        ],
+        "sampling_rates_hz": [
+          20,
+          20,
+          10
+        ]
+      },
+      "metrics": {
+        "config": {
+          "sensor_positions": [
+            0,
+            3,
+            6
+          ],
+          "sampling_rates_hz": [
+            20,
+            20,
+            10
+          ]
+        },
+        "scenario_set": "test",
+        "seed": 98765,
+        "fault_recall": 1.0,
+        "precision": 1.0,
+        "false_alarm_rate": 0.0,
+        "mean_detection_delay_s": 30.925,
+        "sensor_cost_units": 400,
+        "score": 88.69732142857143,
+        "score_version": "v2_delay",
+        "delay_penalty": 0.38656250000000003,
+        "faults_detected": 24,
+        "faults_missed": 0,
+        "false_alarm_windows": 0
+      }
+    },
+    {
+      "config": {
+        "sensor_positions": [
+          1,
+          3,
+          4
+        ],
+        "sampling_rates_hz": [
+          20,
+          10,
+          10
+        ]
+      },
+      "metrics": {
+        "config": {
+          "sensor_positions": [
+            1,
+            3,
+            4
+          ],
+          "sampling_rates_hz": [
+            20,
+            10,
+            10
+          ]
+        },
+        "scenario_set": "test",
+        "seed": 98765,
+        "fault_recall": 0.8333333333333334,
+        "precision": 1.0,
+        "false_alarm_rate": 0.0,
+        "mean_detection_delay_s": 31.610000000000003,
+        "sensor_cost_units": 380,
+        "score": 70.0217261904762,
+        "score_version": "v2_delay",
+        "delay_penalty": 0.49593750000000003,
+        "faults_detected": 20,
+        "faults_missed": 4,
+        "false_alarm_windows": 0
+      }
+    },
+    {
+      "config": {
+        "sensor_positions": [
+          0,
+          1,
+          4
+        ],
+        "sampling_rates_hz": [
+          5,
+          5,
+          20
+        ]
+      },
+      "metrics": {
+        "config": {
+          "sensor_positions": [
+            0,
+            1,
+            4
+          ],
+          "sampling_rates_hz": [
+            5,
+            5,
+            20
+          ]
+        },
+        "scenario_set": "test",
+        "seed": 98765,
+        "fault_recall": 0.8333333333333334,
+        "precision": 1.0,
+        "false_alarm_rate": 0.0,
+        "mean_detection_delay_s": 32.207499999999996,
+        "sensor_cost_units": 360,
+        "score": 70.07581845238097,
+        "score_version": "v2_delay",
+        "delay_penalty": 0.5021614583333334,
+        "faults_detected": 20,
+        "faults_missed": 4,
+        "false_alarm_windows": 0
+      }
+    }
+  ]
+}

@@ -1310,8 +1310,9 @@ else:
                 "is available."
             )
 
-        st.caption(
-            "All experiments use simulated validation "
-            "scenarios. Performance on independent held-out "
-            "scenarios has not yet been demonstrated."
+            st.caption(
+            "Optimization experiments use simulated validation scenarios. "
+            "Independent test-seed comparisons are shown in the "
+            "held-out validation section below. "
+            "Real-machine performance has not been validated."
         )
