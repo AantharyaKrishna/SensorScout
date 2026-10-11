@@ -287,3 +287,59 @@ if evaluation is not None:
             pd.DataFrame(evaluation["scenario_results"]),
             width="stretch",
         )
+
+# Search for missed faults
+st.divider()
+st.subheader("Attack My Design")
+
+st.write(
+    "Search the validation scenarios for faults that your "
+    "selected sensor layout fails to detect."
+)
+
+st.caption(
+    "This is a fixed scenario search. Your teammate's AI agents "
+    "will add more advanced investigation and optimization."
+)
+
+if st.button("Find blind spots"):
+    with st.spinner("Searching for missed faults..."):
+        attack_result = evaluate_configuration(
+            config,
+            scenario_set="validation",
+            seed=int(seed),
+        )
+
+    missed_faults = [
+        scenario
+        for scenario in attack_result["scenario_results"]
+        if scenario["fault_type"] != "healthy"
+        and not scenario["detected"]
+    ]
+
+    if missed_faults:
+        st.error(
+            f"Found {len(missed_faults)} missed fault scenarios."
+        )
+
+        st.dataframe(
+            pd.DataFrame(missed_faults)[
+                ["fault_type", "fault_position"]
+            ],
+            width="stretch",
+            hide_index=True,
+        )
+
+        st.write(
+            "Use the fault type and location above in the sidebar "
+            "to inspect a blind spot. Then move a sensor and "
+            "run the search again."
+        )
+    else:
+        st.success(
+            "No missed faults found in these validation scenarios."
+        )
+
+        st.caption(
+            "Other fault conditions could still reveal blind spots."
+        )
